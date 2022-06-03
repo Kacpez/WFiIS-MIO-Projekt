@@ -1,6 +1,6 @@
 
 clear; clc;
-%warning('off'); % Input . expects a value in range ., but has a value of .
+warning('off'); % Input . expects a value in range ., but has a value of .
 
 % % % Load UCI datasets
 
@@ -92,12 +92,12 @@ datasets = {iris_sets, wine_sets, seeds_sets};
 clearvars -except datasets
 
 % FIS Options
-options = genfisOptions('FCMClustering', 'numClusters', 4);
+options = genfisOptions('SubtractiveClustering');
 % DGO Algorithm variables
 P = 6; % <- DO NOT MODIFY !!!
 DICE_MIN = 1;
 DICE_MAX = 6;
-ITER_MAX = 10;
+ITER_MAX = 1000;
 
 for i = 1 : numel(datasets)
 
@@ -120,7 +120,7 @@ for i = 1 : numel(datasets)
         
         % 1. Calculate each player`s score
         fitness_vals = fitness(param_vals);
-        score_vals = (fitness_vals - min(fitness_vals)) ./ (sum(fitness_vals) - min(fitness_vals));
+        score_vals = (fitness_vals - max(fitness_vals)) ./ (sum(fitness_vals) - max(fitness_vals));
 
         % 2. Each player tosses a dice
         dice_roll = randi([DICE_MIN DICE_MAX], param_size);
@@ -147,6 +147,11 @@ for i = 1 : numel(datasets)
             end
         end
     end
+    
+    % % % Rescale param values
+    lower = min(param_vals);
+    upper = max(param_vals);
+    new_param_vals = rescale(new_param_vals, lower, upper);
     
     % % % Tune FIS
     fis = setTunableValues(fis, fis_settings, new_param_vals);
