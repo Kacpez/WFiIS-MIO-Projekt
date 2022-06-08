@@ -1,6 +1,6 @@
 
 clear; clc;
-%warning('off'); % Input . expects a value in range ., but has a value of .
+warning('off'); % Input . expects a value in range ., but has a value of .
 
 % % % Load UCI datasets
 
