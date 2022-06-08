@@ -8,6 +8,4 @@ function [y] = fitness(x, fis, input, expected_output)
     
     temp_fis = setTunableValues(fis, getTunableSettings(fis), x);
     y = sum(round(evalfis(temp_fis, input)) == expected_output) / numel(expected_output);
-    disp('XD');
 end
-
