@@ -1,6 +1,6 @@
 
 clear; clc;
-warning('off'); % Input . expects a value in range ., but has a value of .
+%warning('off'); % Input . expects a value in range ., but has a value of .
 
 % % % Load UCI datasets
 
@@ -77,7 +77,7 @@ wine_testing_y = (wine_testing(1, :))';
 seeds_training_x = (seeds_training(1:7, :))';
 seeds_training_y = (seeds_training(8, :))';
 seeds_testing_x = (seeds_testing(1:7, :))';
-seeds_testing_y = (seeds_training(8, :))';
+seeds_testing_y = (seeds_testing(8, :))';
 
 % % % Pack datasets to one variable
 % {1} - training_x
@@ -97,66 +97,118 @@ options = genfisOptions('SubtractiveClustering');
 P = 6; % <- DO NOT MODIFY !!!
 DICE_MIN = 1;
 DICE_MAX = 6;
-ITER_MAX = 1000;
+ITER_MAX = 100;
+POPULATION = 10; % POPULATION > DICE_MAX
+NOISE = 0.05;
+STALL_MAX = 15;
+M_STALL_MAX = 3;
 
 for i = 1 : numel(datasets)
-
+    
     % % % Generate FIS
     fis = genfis(datasets{i}{1}, datasets{i}{2}, options);
-    
-    % % % Eval FIS
-    fis_y = round(evalfis(fis, datasets{i}{3}));
-    
+        
     % % % Tuning FIS using Dice Game Optimization (DGO)
     % Retrieve FIS parameters
     fis_settings = getTunableSettings(fis);
     param_vals = getTunableValues(fis, fis_settings);
     param_size = size(param_vals);
+    lower = min(param_vals);
+    upper = max(param_vals);
     
-    % Player = parameter
-    % Player position = parameter value
+    best_vals = param_vals;
+    best_fit = 0;
+    previous_mean = 0;
+    stall = 0;
+    m_stall = 0;   
+    fitness_vals = zeros(1, POPULATION);
+    tested_vals = cell(1, POPULATION);
     
+    for j = 1 : POPULATION
+        tested_vals{j} = best_vals + (best_vals * NOISE) .* randn(size(best_vals));
+    end
+    
+    % Main DGO loop
     for j = 1 : ITER_MAX
         
         % 1. Calculate each player`s score
-        fitness_vals = fitness(param_vals);
-        score_vals = (fitness_vals - max(fitness_vals)) ./ (sum(fitness_vals) - max(fitness_vals));
+        for k = 1 : POPULATION
+            fitness_vals(k) = fitness(tested_vals{k}, fis, datasets{i}{1}, datasets{i}{2});
+        end
+        score_vals = (fitness_vals - min(fitness_vals)) ./ (sum(fitness_vals) - min(fitness_vals));
+               
+        % 2. Save best population
+        max_index = find(fitness_vals == max(fitness_vals));
+        if fitness_vals(max_index) > best_fit
+            best_fit = fitness_vals(max_index);
+            best_vals = tested_vals{max_index};
+            stall = 0;
+        else
+            stall = stall + 1;
+        end
+        
+        % 3. Each player tosses a dice
+        dice_roll = randi([DICE_MIN DICE_MAX], POPULATION);
 
-        % 2. Each player tosses a dice
-        dice_roll = randi([DICE_MIN DICE_MAX], param_size);
-
-        % 3. Specify 'guides' for each player
-        guides = cell(param_size);
-        for k = 1 : param_size(2)
-            guides{k} = randperm(param_size(2));
+        % 4. Specify 'guides' for each player
+        guides = cell(1, POPULATION);
+        for k = 1 : POPULATION
+            guides{k} = randperm(POPULATION);
             guides{k} = guides{k}(1 : dice_roll(k));
             while any(guides{k}(:) == k)
-                guides{k} = randperm(param_size(2));
+                guides{k} = randperm(POPULATION);
                 guides{k} = guides{k}(1 : dice_roll(k));
             end
         end
 
-        % 4. Update position (value) of each player (parameter)
-        new_param_vals = param_vals;
-        for k = 1 : param_size(2)
+        % 5. Update position of each player
+        new_tested_vals = tested_vals;
+        for k = 1 : POPULATION
             for l = 1 : numel(guides{k})
                 r = sum(rand(1, P), 2) / P;
-                new_param_vals(k) =  new_param_vals(k) ...
-                    + r * (param_vals(k) - param_vals(guides{k}(l))) ...
+                new_tested_vals{k} =  new_tested_vals{k} ...
+                    + r * (tested_vals{k} - tested_vals{guides{k}(l)}) ...
                     * sign(score_vals(k) - score_vals(guides{k}(l)));
             end
         end
+        
+        % 6. Rescale values
+        for k = 1 : POPULATION
+            new_tested_vals{k} = rescale(new_tested_vals{k}, lower, upper);
+        end
+        tested_vals = new_tested_vals;
+        
+        % 7. If fitness mean in last M_STALL_MAX iterations has not improved
+        % go back to best_vals
+        if mean(fitness_vals) > previous_mean
+            previous_mean = mean(fitness_vals);
+            m_stall = 0;
+        elseif m_stall == M_STALL_MAX
+            m_stall = 0;
+            for k = 1 : POPULATION
+                tested_vals{k} = best_vals + (best_vals * NOISE) .* randn(size(best_vals));
+            end
+        else
+            m_stall = m_stall + 1;
+        end
+        
+        % 8. If no improvement in last STALL_MAX iterations - stop
+        if stall == STALL_MAX
+            break
+        end
     end
     
-    % % % Rescale param values
-    lower = min(param_vals);
-    upper = max(param_vals);
-    new_param_vals = rescale(new_param_vals, lower, upper);
+    disp('FIS - learning set');
+    disp(sum(round(evalfis(fis, datasets{i}{1})) == datasets{i}{2}) / numel(datasets{i}{2}));
+    disp('FIS - testing set');
+    disp(sum(round(evalfis(fis, datasets{i}{3})) == datasets{i}{4}) / numel(datasets{i}{4}));
     
     % % % Tune FIS
-    fis = setTunableValues(fis, fis_settings, new_param_vals);
-
-    % % % Eval FIS once again
-    tuned_fis_y = round(evalfis(fis, datasets{i}{3}));
+    fis = setTunableValues(fis, getTunableSettings(fis), best_vals);
+    
+    disp('tuned FIS - learning set');
+    disp(sum(round(evalfis(fis, datasets{i}{1})) == datasets{i}{2}) / numel(datasets{i}{2}));
+    disp('tuned FIS - testing set');
+    disp(sum(round(evalfis(fis, datasets{i}{3})) == datasets{i}{4}) / numel(datasets{i}{4}));
     
 end
