@@ -127,8 +127,9 @@ POPULATION = 16; % POPULATION > DICE_MAX
 NOISE = 0.05;
 STALL_MAX = 15;
 M_STALL_MAX = 5;
+A=zeros(3,100);%best fitness on iteration
 
-for i = 1 : 1%numel(datasets)
+for i = 1 : numel(datasets)
         
     cv5 = 0;
     cv5_tuned = 0;
@@ -181,6 +182,9 @@ for i = 1 : 1%numel(datasets)
 
             % 2. Save best population
             max_index = find(fitness_vals == max(fitness_vals));
+            max_index=max_index(1);
+            x=fitness_vals(max_index);
+            A(i,j)=x(1);
             if fitness_vals(max_index) > best_fit
                 best_fit = fitness_vals(max_index);
                 best_vals = tested_vals{max_index};
@@ -239,10 +243,11 @@ for i = 1 : 1%numel(datasets)
                 break
             end
         end
-        
-        cv5 = cv5 + sum(round(evalfis(fis, testing_set_x)) == testing_set_y) / numel(datasets{i}{2});
-        fis = setTunableValues(fis, getTunableSettings(fis), best_vals);
-        cv5_tuned = cv5_tuned + sum(round(evalfis(fis, testing_set_x)) == testing_set_y) / numel(datasets{i}{2});
+        disp('Fis');
+        disp(fold);
+        cv5 = cv5 + sum(round(evalfis(fis, testing_set_x)) == testing_set_y) / numel(testing_set_y);
+        fis_dice = setTunableValues(fis, getTunableSettings(fis), best_vals);
+        cv5_tuned = cv5_tuned + sum(round(evalfis(fis_dice, testing_set_x)) == testing_set_y) / numel(testing_set_y);
                       
     end
       
