@@ -130,6 +130,9 @@ M_STALL_MAX = 5;
 
 for i = 1 : 1%numel(datasets)
         
+    cv5 = 0;
+    cv5_tuned = 0;
+    
     for fold = 1 : 5
         
         training_set_x = [];
@@ -237,21 +240,13 @@ for i = 1 : 1%numel(datasets)
             end
         end
         
-        %%%% mhmm + sum(round(evalfis(fis, testing_set_x)) == testing_set_y) / numel(datasets{i}{2});
+        cv5 = cv5 + sum(round(evalfis(fis, testing_set_x)) == testing_set_y) / numel(datasets{i}{2});
+        fis = setTunableValues(fis, getTunableSettings(fis), best_vals);
+        cv5_tuned = cv5_tuned + sum(round(evalfis(fis, testing_set_x)) == testing_set_y) / numel(datasets{i}{2});
                       
     end
       
-    disp('FIS - learning set');
-    disp(sum(round(evalfis(fis, datasets{i}{1})) == datasets{i}{2}) / numel(datasets{i}{2}));
-    disp('FIS - testing set');
-    disp(sum(round(evalfis(fis, datasets{i}{3})) == datasets{i}{4}) / numel(datasets{i}{4}));
+    cv5 = cv5 / 5;
+    cv5_tuned = cv5_tuned / 5;
     
-    % % % Tune FIS
-    fis = setTunableValues(fis, getTunableSettings(fis), best_vals);
-    
-    disp('tuned FIS - learning set');
-    disp(sum(round(evalfis(fis, datasets{i}{1})) == datasets{i}{2}) / numel(datasets{i}{2}));
-    disp('tuned FIS - testing set');
-    disp(sum(round(evalfis(fis, datasets{i}{3})) == datasets{i}{4}) / numel(datasets{i}{4}));
-   
 end
